@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StageTrack — Jules COUPRIE</title>
+  <meta name="description" content="Interface de suivi de recherche de stage — Jules COUPRIE, Ingénieur CFD & Aérodynamique, ESTACA.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+<!-- =============================================
+     HEADER
+     ============================================= -->
+<header class="app-header">
+  <div class="header-inner">
+    <!-- Brand -->
+    <div class="brand">
+      <div class="brand-icon"><i class="fa-solid fa-wind"></i></div>
+      <div>
+        <div class="brand-name">StageTrack</div>
+        <div class="brand-meta">Jules COUPRIE &nbsp;<span class="badge-school">ESTACA CFD</span></div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="header-actions">
+      <a href="https://estaca-my.sharepoint.com/:x:/g/personal/jules_couprie_estaca_eu/IQBzM6SahYOnSbk7CqLSGI6MAUijLoLawxeKJFY0R_0?e=P4OosA"
+         target="_blank" class="btn btn-excel">
+        <i class="fa-solid fa-file-excel"></i> Ouvrir Excel
+      </a>
+
+      <button class="btn btn-ghost" onclick="excelSync.exportToExcel()">
+        <i class="fa-solid fa-download"></i> Exporter .xlsx
+      </button>
+
+      <label class="btn btn-ghost" style="cursor:pointer;">
+        <i class="fa-solid fa-file-import"></i> Importer Excel
+        <input type="file" id="excel-import-input" accept=".xlsx,.csv" style="display:none;">
+      </label>
+
+      <button class="btn btn-dark" onclick="openAddModal()">
+        <i class="fa-solid fa-plus"></i> Candidature
+      </button>
+    </div>
+  </div>
+</header>
+
+
+<!-- =============================================
+     MAIN
+     ============================================= -->
+<main class="main-wrapper">
+
+  <!-- KPI Row -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">Total</div>
+      <div class="kpi-value" id="kpi-total">0</div>
+      <div class="kpi-sub">Candidatures</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">En attente</div>
+      <div class="kpi-value" id="kpi-pending">0</div>
+      <div class="kpi-sub">En cours</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Entretiens</div>
+      <div class="kpi-value" id="kpi-interview">0</div>
+      <div class="kpi-sub">Décrochés</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Acceptées</div>
+      <div class="kpi-value" id="kpi-accepted">0</div>
+      <div class="kpi-sub">Offres reçues</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Taux réponse</div>
+      <div class="kpi-value" id="kpi-rate">0%</div>
+      <div class="kpi-sub">Ratio recruteur</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <nav class="tabs-nav">
+    <button class="tab-btn active" data-tab="tracker-tab">
+      <i class="fa-solid fa-table-list"></i> Candidatures
+    </button>
+    <button class="tab-btn" data-tab="crm-tab">
+      <i class="fa-solid fa-address-book"></i> Annuaire Contacts
+    </button>
+    <button class="tab-btn" data-tab="portfolio-tab">
+      <i class="fa-solid fa-briefcase"></i> Portfolio & CV
+    </button>
+    <button class="tab-btn" data-tab="tools-tab">
+      <i class="fa-solid fa-wand-magic-sparkles"></i> Outils
+    </button>
+  </nav>
+
+
+  <!-- =============================================
+       TAB 1 — Candidatures & Tableau de Bord
+       ============================================= -->
+  <section id="tracker-tab" class="tab-panel active">
+
+    <!-- Charts -->
+    <div class="charts-row">
+      <div class="chart-wrap">
+        <div class="chart-title">Répartition par Statut</div>
+        <div class="chart-canvas-wrap"><canvas id="chart-status"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">Répartition par Domaine</div>
+        <div class="chart-canvas-wrap"><canvas id="chart-domain"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Table Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <i class="fa-solid fa-list-check"></i> Suivi des Postulations
+        </div>
+        <button class="btn btn-dark" onclick="openAddModal()">
+          <i class="fa-solid fa-plus"></i> Ajouter
+        </button>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="search-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input id="search-input" type="text" class="input" placeholder="Rechercher entreprise, poste, ville…">
+        </div>
+        <div class="select-wrap">
+          <select id="filter-status" class="select">
+            <option value="all">Tous les statuts</option>
+            <option value="En attente">En attente</option>
+            <option value="Entretien">Entretien</option>
+            <option value="À relancer">À relancer</option>
+            <option value="Accepté">Accepté</option>
+            <option value="Refusé">Refusé</option>
+          </select>
+        </div>
+        <div class="select-wrap">
+          <select id="filter-domain" class="select">
+            <option value="all">Tous les domaines</option>
+            <option value="Sport Auto">Sport Auto</option>
+            <option value="Aéronautique">Aéronautique</option>
+            <option value="Automobile">Automobile</option>
+            <option value="Autre">Autre</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Entreprise</th>
+              <th>Poste</th>
+              <th>Domaine</th>
+              <th>Lieu</th>
+              <th>Durée</th>
+              <th>Statut</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="apps-tbody">
+            <!-- Injected by tracker.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =============================================
+       TAB 2 — CRM & Contacts
+       ============================================= -->
+  <section id="crm-tab" class="tab-panel">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title"><i class="fa-solid fa-building-user"></i> Annuaire Écuries & Contacts Réseau</div>
+          <p style="font-size:.82rem;color:var(--text-muted);margin-top:.2rem;">
+            Vos contacts LinkedIn, écuries Motorsport (F1, WEC) et industriels de l'Aéronautique.
+          </p>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center;">
+          <span class="crm-stat-chip" id="crm-fav-count">0 favori</span>
+          <span class="crm-stat-chip" id="crm-count">0 / 0</span>
+          <button class="btn btn-dark" onclick="openAddCRMModal()">
+            <i class="fa-solid fa-user-plus"></i> Ajouter
+          </button>
+        </div>
+      </div>
+
+      <!-- CRM toolbar row 1: search + sectors -->
+      <div class="toolbar">
+        <div class="search-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input id="crm-search" type="text" class="input" placeholder="Rechercher nom, rôle, entreprise, ville…">
+        </div>
+        <div class="select-wrap">
+          <select id="crm-sector" class="select">
+            <option value="all">Tous les secteurs</option>
+            <option value="Sport Auto">Sport Auto / F1 / WEC</option>
+            <option value="Aéronautique">Aéronautique</option>
+            <option value="Automobile">Automobile</option>
+          </select>
+        </div>
+        <div class="select-wrap">
+          <select id="crm-source-filter" class="select">
+            <option value="all">Toutes les sources</option>
+            <option value="LinkedIn">LinkedIn</option>
+            <option value="Direct">Contact Direct</option>
+            <option value="Alumni ESTACA">Alumni ESTACA</option>
+          </select>
+        </div>
+        <div class="select-wrap">
+          <select id="crm-type-filter" class="select">
+            <option value="all">Tous les types</option>
+            <option value="person">👤 Contact individuel</option>
+            <option value="org">🏢 Service RH / Entreprise</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- CRM toolbar row 2: favorites filter -->
+      <div class="crm-toolbar-row">
+        <label class="fav-filter-label">
+          <input type="checkbox" id="crm-fav-filter">
+          <i class="fa-solid fa-star"></i>
+          Favoris uniquement
+        </label>
+        <span style="font-size:.8rem;color:var(--text-muted);">⭐ Cliquez sur l'étoile d'une carte pour l'ajouter à vos favoris</span>
+      </div>
+
+      <!-- Cards grid -->
+      <div id="crm-grid" class="crm-grid">
+        <!-- Injected by crm.js -->
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =============================================
+       TAB 3 — Portfolio & CV
+       ============================================= -->
+  <section id="portfolio-tab" class="tab-panel">
+
+    <!-- Hero Card -->
+    <div class="portfolio-hero">
+      <div class="portfolio-avatar"><i class="fa-solid fa-user-tie"></i></div>
+      <div class="portfolio-info" style="flex:1;">
+        <h2>Jules COUPRIE</h2>
+        <p>Élève Ingénieur 4A — ESTACA · Spécialisation Aérodynamique & CFD · Stage 4 mois dès mai 2026</p>
+        <div class="tag-list">
+          <span class="tag">CFD (Star-CCM+, Ansys Fluent)</span>
+          <span class="tag">Aérodynamique Motorsport</span>
+          <span class="tag">Python & ParaView</span>
+          <span class="tag">Formula Student</span>
+          <span class="tag">ESTACA 4A</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.5rem;">
+        <a href="../portfolio/index.html" target="_blank" class="btn btn-dark">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Ouvrir le Portfolio
+        </a>
+        <a href="mailto:jules.couprie@estaca.eu" class="btn btn-ghost">
+          <i class="fa-solid fa-envelope"></i> Email ESTACA
+        </a>
+      </div>
+    </div>
+
+    <!-- Document Cards -->
+    <div class="docs-grid">
+      <div class="doc-card">
+        <div class="doc-card-icon"><i class="fa-solid fa-file-pdf"></i></div>
+        <h4>CV Français</h4>
+        <p>Version française du CV ingénieur CFD & Aérodynamique, format A4 PDF.</p>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="showToast('CV FR disponible dans votre portfolio.', 'info')">
+          <i class="fa-solid fa-eye"></i> Consulter
+        </button>
+      </div>
+
+      <div class="doc-card">
+        <div class="doc-card-icon"><i class="fa-solid fa-file-pdf"></i></div>
+        <h4>CV Anglais</h4>
+        <p>English resume for international internship applications (UK, Switzerland, Italy, Germany).</p>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="showToast('CV EN disponible dans votre portfolio.', 'info')">
+          <i class="fa-solid fa-eye"></i> View
+        </button>
+      </div>
+
+      <div class="doc-card">
+        <div class="doc-card-icon"><i class="fa-solid fa-car-burst"></i></div>
+        <h4>Projets Aérodynamiques</h4>
+        <p>Étude d'aileron F1, simulation en effet de sol, étude de couche limite turbulente.</p>
+        <a href="../portfolio/index.html#experiences" target="_blank" class="btn btn-ghost" style="width:100%;justify-content:center;">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Voir
+        </a>
+      </div>
+
+      <div class="doc-card">
+        <div class="doc-card-icon"><i class="fa-brands fa-linkedin"></i></div>
+        <h4>Profils Professionnels</h4>
+        <p>LinkedIn et GitHub pour partager directement votre profil avec les recruteurs.</p>
+        <div style="display:flex;gap:.5rem;">
+          <a href="https://linkedin.com" target="_blank" class="btn btn-ghost" style="flex:1;justify-content:center;">
+            <i class="fa-brands fa-linkedin"></i> LinkedIn
+          </a>
+          <a href="https://github.com" target="_blank" class="btn btn-ghost" style="flex:1;justify-content:center;">
+            <i class="fa-brands fa-github"></i> GitHub
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =============================================
+       TAB 4 — Outils
+       ============================================= -->
+  <section id="tools-tab" class="tab-panel">
+
+    <!-- 1. Email Generator -->
+    <div class="tools-section">
+      <div class="tools-section-title">
+        <i class="fa-solid fa-envelope-open-text"></i> Générateur de Mails de Candidature & Relance
+      </div>
+      <div class="tools-section-desc">
+        Sélectionnez un modèle, personnalisez et copiez ou envoyez en un clic.
+      </div>
+
+      <div class="form-grid-2">
+        <div class="span-2">
+          <label class="form-label">Modèle de mail</label>
+          <div class="select-wrap" style="max-width:100%;">
+            <select id="email-tpl" class="select" onchange="generateEmail()">
+              <optgroup label="🇫🇷 Modèles Français">
+                <option value="spontaneous">🇫🇷 Candidature Spontanée CFD / Aérodynamique</option>
+                <option value="relaunch">🇫🇷 Relance (J+10 / J+14)</option>
+                <option value="alumni">🇫🇷 🎓 Prise de contact Alumni ESTACA</option>
+                <option value="linkedin">🇫🇷 Note de connexion LinkedIn (300 car.)</option>
+                <option value="thanks">🇫🇷 Remerciement Post-Entretien</option>
+                <option value="custom">🇫🇷 ✏️ Personnalisé / Message libre</option>
+              </optgroup>
+              <optgroup label="🇬🇧 English Templates">
+                <option value="spontaneous_en">🇬🇧 Spontaneous Application — Aerodynamics & CFD</option>
+                <option value="relaunch_en">🇬🇧 Follow-up / Application Status</option>
+                <option value="alumni_en">🇬🇧 🎓 ESTACA Alumni Outreach</option>
+                <option value="linkedin_en">🇬🇧 LinkedIn Connection Note (300 char.)</option>
+                <option value="thanks_en">🇬🇧 Post-Interview Thank You</option>
+                <option value="custom_en">🇬🇧 ✏️ Custom / Free Message (EN)</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="form-label">Entreprise / Écurie</label>
+          <input id="email-company" type="text" class="input" placeholder="ex: Alpine F1 Team" oninput="generateEmail()">
+        </div>
+        <div>
+          <label class="form-label">Nom du recruteur / contact</label>
+          <input id="email-recruiter" type="text" class="input" placeholder="ex: Monsieur Dupont" oninput="generateEmail()">
+        </div>
+        <div class="span-2">
+          <label class="form-label">Poste visé</label>
+          <input id="email-position" type="text" class="input" placeholder="ex: Stagiaire Ingénieur CFD" oninput="generateEmail()">
+        </div>
+      </div>
+
+      <div style="margin-bottom:.75rem;">
+        <label class="form-label">Objet</label>
+        <input id="email-subject" type="text" class="input" style="font-weight:600;">
+      </div>
+      <div style="margin-bottom:1rem;">
+        <label class="form-label">Corps du message</label>
+        <textarea id="email-body" class="textarea" rows="9"></textarea>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-ghost" onclick="copyEmail()">
+          <i class="fa-solid fa-copy"></i> Copier le texte
+        </button>
+        <button class="btn btn-dark" onclick="openInMailClient()">
+          <i class="fa-solid fa-paper-plane"></i> Ouvrir dans mon client mail
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. Gratification Calculator -->
+    <div class="tools-section">
+      <div class="tools-section-title">
+        <i class="fa-solid fa-calculator"></i> Simulateur Gratification & Coût de la Vie
+      </div>
+      <div class="tools-section-desc">
+        Estimez votre pouvoir d'achat mensuel net selon le pays de votre stage.
+      </div>
+
+      <div class="form-grid-2" style="margin-bottom:1rem;">
+        <div>
+          <label class="form-label">Gratification horaire (€/h)</label>
+          <input id="calc-rate" type="number" step="0.01" class="input" value="4.35" oninput="calculateGrat()">
+          <span style="font-size:.72rem;color:var(--text-muted);margin-top:.25rem;display:block;">Minimum légal France : 4,35 €/h</span>
+        </div>
+        <div>
+          <label class="form-label">Heures / semaine</label>
+          <input id="calc-hours" type="number" class="input" value="35" oninput="calculateGrat()">
+        </div>
+        <div class="span-2">
+          <label class="form-label">Pays</label>
+          <div class="select-wrap" style="max-width:100%;">
+            <select id="calc-country" class="select" onchange="calculateGrat()">
+              <option value="FR">🇫🇷 France</option>
+              <option value="UK">🇬🇧 Royaume-Uni</option>
+              <option value="CH">🇨🇭 Suisse</option>
+              <option value="DE">🇩🇪 Allemagne</option>
+              <option value="IT">🇮🇹 Italie</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="calc-results">
+        <div class="calc-result-item">
+          <div class="result-label">Gratification brute / mois</div>
+          <div class="calc-result-value" id="calc-gross">—</div>
+        </div>
+        <div class="calc-result-item">
+          <div class="result-label">Dépenses estimées (loyer + nourriture)</div>
+          <div class="calc-result-value" id="calc-expenses">—</div>
+        </div>
+        <div class="calc-result-item">
+          <div class="result-label">Solde mensuel net</div>
+          <div class="calc-result-value" id="calc-net">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Parcours d'Aventure & Leçons Interactives -->
+    <div class="tools-section">
+      <div class="tools-section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
+        <span><i class="fa-solid fa-compass" style="color:#2563eb;"></i> Parcours d'Aventure — Progression & Master Class CFD</span>
+        <span id="quest-rank-title" style="font-size:.82rem;font-weight:700;color:var(--text-primary);background:#f1f5f9;padding:.25rem .75rem;border-radius:20px;border:1px solid #cbd5e1;">🛡️ Stagiaire CFD (Niveau 1)</span>
+      </div>
+      <div class="tools-section-desc">
+        Suivez le chemin d'apprentissage étape par étape. Consultez les leçons avec liens d'études fiables, puis validez le QCM interactif pour gagner des points d'XP et monter en grade.
+      </div>
+
+      <!-- XP Bar -->
+      <div style="background:#e2e8f0;height:10px;border-radius:5px;overflow:hidden;margin-bottom:.5rem;">
+        <div id="quest-xp-bar" style="background:linear-gradient(90deg, #3b82f6, #8b5cf6);height:100%;width:0%;transition:width .4s ease;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.74rem;color:var(--text-muted);margin-bottom:1.25rem;">
+        <span>XP de Progression Aéro</span>
+        <strong id="quest-xp-text" style="color:var(--text-primary);">0 / 1800 XP (0%)</strong>
+      </div>
+
+      <!-- Roadmap Timeline Container -->
+      <div id="quest-roadmap-container" class="quest-roadmap-grid"></div>
+    </div>
+
+    <!-- 4. Suivi Rapide des Sujets & Checklist -->
+    <div class="tools-section">
+      <div class="tools-section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
+        <span><i class="fa-solid fa-list-check"></i> Checklist & Suivi Rapide des Notions</span>
+        <span id="learn-progress-text" style="font-size:.8rem;font-weight:600;color:var(--text-secondary);background:var(--bg-subtle);padding:.25rem .65rem;border-radius:20px;border:1px solid var(--border);">0 / 0 maîtrisés</span>
+      </div>
+      <div class="tools-section-desc">
+        Ajustez rapidement vos notions personnelles à réviser, en cours ou maîtrisées.
+      </div>
+
+      <!-- Progress bar -->
+      <div style="background:#f1f5f9;height:8px;border-radius:4px;overflow:hidden;margin-bottom:1.25rem;">
+        <div id="learn-progress-bar" style="background:#22c55e;height:100%;width:0%;transition:width .3s ease;"></div>
+      </div>
+
+      <!-- Container injected by tools.js -->
+      <div id="learning-container"></div>
+
+      <!-- Add new topic form -->
+      <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px dashed var(--border);">
+        <form onsubmit="event.preventDefault(); learningTracker.addTopic(document.getElementById('new-learn-title').value, document.getElementById('new-learn-cat').value, document.getElementById('new-learn-notes').value); document.getElementById('new-learn-title').value=''; document.getElementById('new-learn-notes').value='';">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.5rem;">
+            <input id="new-learn-title" type="text" class="input" placeholder="Titre du sujet (ex: Maillage Hybride Star-CCM+)" required>
+            <input id="new-learn-cat" type="text" class="input" placeholder="Catégorie (ex: CFD & Turbulence)" value="Aérodynamique Motorsport">
+          </div>
+          <div style="display:flex;gap:.5rem;">
+            <input id="new-learn-notes" type="text" class="input" style="flex:1;" placeholder="Notes ou points clés à retenir...">
+            <button type="submit" class="btn btn-dark" style="flex:none;">
+              <i class="fa-solid fa-plus"></i> Ajouter
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 4. Interview Q&A / Oraux -->
+    <div class="tools-section">
+      <div class="tools-section-title">
+        <i class="fa-solid fa-graduation-cap"></i> Préparateur d'Entretien Technique & Oraux — CFD & Aérodynamique
+      </div>
+      <div class="tools-section-desc">
+        Questions fréquemment posées lors des entretiens en Motorsport & Aéronautique. Cliquez pour révéler la réponse.
+      </div>
+      <div id="qa-container"></div>
+    </div>
+
+  </section>
+
+</main>
+
+
+<!-- =============================================
+     MODAL — Candidature (Add/Edit)
+     ============================================= -->
+<div id="modal-app" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="modal-app-heading" class="modal-title">Nouvelle Candidature</h2>
+      <button class="btn-icon" data-close-modal><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <form id="app-form" onsubmit="saveApp(event)">
+      <input type="hidden" id="app-form-id">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Entreprise / Écurie *</label>
+          <input id="app-company" type="text" class="input" required placeholder="ex: Alpine F1 Team">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Poste / Intitulé du stage *</label>
+          <input id="app-position" type="text" class="input" required placeholder="ex: Stagiaire Ingénieur CFD">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Domaine d'activité</label>
+          <div class="select-wrap" style="max-width:100%;">
+            <select id="app-domain" class="select">
+              <option value="Sport Auto">Sport Auto</option>
+              <option value="Aéronautique">Aéronautique</option>
+              <option value="Automobile">Automobile</option>
+              <option value="Autre">Autre</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">À l'étranger</label>
+          <div class="select-wrap" style="max-width:100%;">
+            <select id="app-abroad" class="select">
+              <option value="Non">Non (France)</option>
+              <option value="Oui">Oui (Étranger)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lieu (Ville, Pays)</label>
+          <input id="app-location" type="text" class="input" placeholder="ex: Enstone, Royaume-Uni">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Durée (mois)</label>
+          <input id="app-duration" type="number" min="1" max="12" class="input" value="4">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contact — Email</label>
+          <input id="app-email" type="email" class="input" placeholder="recrutement@entreprise.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contact — Téléphone</label>
+          <input id="app-phone" type="text" class="input" placeholder="+33 6 …">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Candidature envoyée ?</label>
+          <div class="select-wrap" style="max-width:100%;">
+            <select id="app-sent" class="select">
+              <option value="Oui">Oui</option>
+              <option value="Non">Non</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date d'envoi</label>
+          <input id="app-date" type="date" class="input">
+        </div>
+        <div class="form-group span-2">
+          <label class="form-label">Statut</label>
+          <div class="select-wrap" style="max-width:100%;">
+            <select id="app-status" class="select">
+              <option value="En attente">En attente</option>
+              <option value="Entretien">Entretien</option>
+              <option value="À relancer">À relancer</option>
+              <option value="Accepté">Accepté</option>
+              <option value="Refusé">Refusé</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group span-2">
+          <label class="fav-filter-label" style="justify-content:flex-start;font-weight:400;font-size:.8rem;padding:.4rem .65rem;border-style:dashed;">
+            <input type="checkbox" id="app-cesure" style="accent-color:#8b5cf6;">
+            <i class="fa-solid fa-graduation-cap" style="color:#8b5cf6;"></i>
+            <span>Option Césure 6 mois possible (remplace stage 4 mois)</span>
+          </label>
+        </div>
+
+        <div class="form-group span-2">
+          <label class="form-label">Notes & Suivi</label>
+          <textarea id="app-notes" class="textarea" rows="3" placeholder="Relances prévues, suivi des échanges…"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close-modal>Annuler</button>
+        <button type="submit" class="btn btn-dark"><i class="fa-solid fa-check"></i> Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- =============================================
+     MODAL — CRM Add Contact
+     ============================================= -->
+<div id="modal-crm" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 class="modal-title">Ajouter un Contact</h2>
+      <button class="btn-icon" data-close-modal><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <form id="crm-form" onsubmit="saveCRM(event)">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Entreprise / Écurie *</label>
+          <input id="crm-name" type="text" class="input" required placeholder="ex: Sauber Motorsport">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Secteur</label>
+          <div class="select-wrap" style="max-width:100%;">
+            <select id="crm-sector-form" class="select">
+              <option value="Sport Auto (Formule 1)">Sport Auto (Formule 1)</option>
+              <option value="Sport Auto (WEC / Hypercar)">Sport Auto (WEC / Hypercar)</option>
+              <option value="Sport Auto (GT / Endurance)">Sport Auto (GT / Endurance)</option>
+              <option value="Aéronautique">Aéronautique</option>
+              <option value="Automobile">Automobile</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Localisation</label>
+          <input id="crm-location" type="text" class="input" placeholder="ex: Hinwil, Suisse">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nom du contact</label>
+          <input id="crm-contact" type="text" class="input" placeholder="ex: Marc Vasseur">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Poste / Rôle</label>
+          <input id="crm-role" type="text" class="input" placeholder="ex: Head of CFD">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email direct</label>
+          <input id="crm-email" type="email" class="input" placeholder="contact@sauber-group.com">
+        </div>
+        <div class="form-group span-2">
+          <label class="form-label">Notes</label>
+          <textarea id="crm-notes" class="textarea" rows="2" placeholder="Alumni ESTACA, méthode de contact…"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close-modal>Annuler</button>
+        <button type="submit" class="btn btn-dark"><i class="fa-solid fa-check"></i> Ajouter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- =============================================
+     MODAL — Détails du Contact (CRM)
+     ============================================= -->
+<div id="modal-contact-detail" class="modal-overlay">
+  <div class="modal-box" style="max-width:520px;">
+    <div class="modal-header">
+      <h2 class="modal-title"><i class="fa-solid fa-address-card" style="color:var(--text-muted);"></i> Fiche Contact</h2>
+      <button class="btn-icon" data-close-modal><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <div id="contact-detail-body">
+      <!-- Injected by crm.js renderDetailModal -->
+    </div>
+  </div>
+</div>
+
+
+<!-- =============================================
+     MODAL — Leçon & QCM d'Évaluation (Apprentissage)
+     ============================================= -->
+<div id="modal-learning-lesson" class="modal-overlay">
+  <div class="modal-box modal-box--wide">
+    <div class="modal-header">
+      <h2 id="quest-modal-title" class="modal-title" style="font-size:1rem;">Niveau — Leçon</h2>
+      <button class="btn-icon" data-close-modal><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <!-- Navigation Onglets Modal -->
+    <div class="quest-modal-tabs">
+      <button id="btn-tab-lesson" class="quest-tab-btn active" onclick="questManager.switchTab('lesson')">
+        <i class="fa-solid fa-book"></i> 1. Leçon & Références Fiables
+      </button>
+      <button id="btn-tab-quiz" class="quest-tab-btn" onclick="questManager.switchTab('quiz')">
+        <i class="fa-solid fa-pen-ruler"></i> 2. QCM de Validation
+      </button>
+    </div>
+
+    <div style="margin-top:.85rem;">
+      <div id="quest-tab-lesson" class="quest-tab-content">
+        <!-- Injected by QuestManager -->
+      </div>
+      <div id="quest-tab-quiz" class="quest-tab-content" style="display:none;">
+        <!-- Injected by QuestManager -->
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- =============================================
+     MODAL — Rappel Outlook Calendar
+     ============================================= -->
+<div id="modal-reminder" class="modal-overlay">
+  <div class="modal-box" style="max-width:460px;">
+    <div class="modal-header">
+      <h2 class="modal-title"><i class="fa-brands fa-microsoft" style="color:#0078d4;"></i> Rappel Outlook Calendar</h2>
+      <button class="btn-icon" data-close-modal><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:1rem;padding:.25rem 0;">
+      <div class="info-banner">
+        <i class="fa-brands fa-microsoft" style="color:#0078d4;"></i>
+        <span>Programmez un rappel dans votre calendrier <strong>Outlook (ESTACA Office 365)</strong> ou téléchargez un fichier <strong>.ics</strong>.</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Sujet du rappel</label>
+        <input id="reminder-title" type="text" class="input" placeholder="Relance Alpine F1 Team…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Objet / Que demander au contact ?</label>
+        <textarea id="reminder-body" class="textarea" rows="3" placeholder="Contacter pour demander si..."></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+        <div class="form-group">
+          <label class="form-label">Date du rappel</label>
+          <input id="reminder-date" type="date" class="input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Heure</label>
+          <input id="reminder-time" type="time" class="input" value="09:00">
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer" style="flex-direction:column;gap:.6rem;">
+      <div style="display:flex;gap:.5rem;width:100%;">
+        <button class="btn btn-ghost" data-close-modal style="flex:1;">Annuler</button>
+        <button class="btn btn-reminder" style="flex:1.2;justify-content:center;background:#0078d4;color:#fff;border-color:#005a9e;" onclick="openOutlookWeb()">
+          <i class="fa-brands fa-microsoft"></i> Outlook Web (ESTACA)
+        </button>
+        <button class="btn btn-dark" style="flex:1;justify-content:center;" onclick="downloadICS()">
+          <i class="fa-solid fa-file-arrow-down"></i> Fichier .ics
+        </button>
+      </div>
+      <p style="font-size:.72rem;color:var(--text-muted);text-align:center;">
+        🌐 <strong>Outlook Web</strong> ouvre directement la création d'événement sur votre compte ESTACA.<br>
+        💻 <strong>Fichier .ics</strong> s'ouvre dans Outlook Desktop ou l'application Calendrier Windows.
+      </p>
+    </div>
+  </div>
+</div>
+
+
+<div id="toast-container" class="toast-container"></div>
+
+<!-- Scripts -->
+<script src="js/data.js"></script>
+<script src="js/tracker.js"></script>
+<script src="js/excel.js"></script>
+<script src="js/crm.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
